@@ -1,0 +1,306 @@
+---
+title: "Mini-project 5 - Getting started with {ggplot2}"
+author: "Mike K Smith"
+date: "2/16/2023"
+output: html_document
+---
+
+## Data Source
+For these projects we are using anonymized CDISC datasets, which can be found here:
+https://github.com/phuse-org/phuse-scripts/tree/master/data/adam/cdisc 
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rio)
+library(glue)
+```
+
+In this mini-project we will be using the `{ggplot2}` package to create data visualizations. {ggplot2} is our preferred package for creating data visualizations as there are a large number of ancillary packages that can be used to annotate and manipulate the created plots.
+
+In this mini-project we'll be using the `ggplot` function and defining how data columns map to plot aesthetics using the `aes` function. We're also going to be using various functions that define how the data points are going to be displayed in the plot - `geom_point`, `geom_line`. The `labs` function allows you to annotate plots with titles, subtitles, axes labels etc.
+
+## 1. Create a dataset
+
+This dataset is the Analysis Vital Signs from CDISC that was created for training/testing purposes. We're going to focus on the heart rate measurement in this Mini Project. We are calculating a new variable `StudyWeek` that defines the week within the Active Treatment Period.
+
+```{r}
+ADVS <- import("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/advs.xpt")
+
+PR <- ADVS %>%
+  filter(PARAMN == 3) %>% 
+  filter(VISITNUM > 3) %>%
+  mutate(StudyWeek = floor(ADY/7))
+
+```
+
+## 2. Use basic ggplot function
+
+The basic `ggplot` command from the `{ggplot2}` package creates a blank "canvas" on which to place points, lines, shapes etc.
+
+The `data` argument is the dataset used for the plot. `mapping` identifies which columns in the data are used to define aesthetics on the plot, which are passed to the `aes( )` function. So in this case the x axis is defined by `ADY` which is the study day of the measurement. The y-axis is the numeric value for the heart rate given in the column `AVAL`. Note this this statement alone simply defines the attributes of the plot - dataset and column mapping to plot attributes.\
+\
+**While learning {ggplot2} we strongly recommend explicitly using the `mapping`** **argument**. This will remind you that you are mapping between column values and attributes on the plot. You will see many people skip naming this argument, but this can lead to confusion and makes it harder to learn what is going on in the `{ggplot2}` call.
+
+```{r}
+    ggplot(data = PR, mapping = aes(x=ADY, y=AVAL)) 
+```
+
+## 3. Add points to the "canvas" created in the previous step.
+
+To make a scatterplot add '+ geom_point()' to the above statement. NOTE: always put the `+` sign at the end of a line, not at the start.
+
+**NOTE:** The `{ggplot2}` package was created before the advent of the `%>%` operator. You can view the `+` operator within `{ggplot2}` as being analogous to the `%>%` pipe. `+` is **adding** additional layers to the plot. If you are familiar with image editing software like Adobe Photoshop then you'll know that images within Photoshop can be made up of layers which are edited individually.
+
+By default, the `geom_` functions will honour the column to aesthetic attributes defined in the `ggplot` function **but it doesn't have to.** These `geom_` functions have a `mapping` argument of their own to allow you to redefine or change mappings if required.
+
+```{r}
+ggplot(data = PR, mapping = aes(x=ADY, y=AVAL)) + 
+  geom_point()
+```
+
+## 4. Identify groups of data
+
+There is a `group` argument to the `aes( )` function which allows you to define groupings / data series within the dataset. In the plot above, it might be good to show which data corresponds to different treatment arms.
+
+```{r}
+ggplot(data = PR, mapping = aes(x=ADY, y=AVAL, group = TRTA)) + 
+  geom_point()
+```
+
+Huh? That hasn't done anything?
+
+Well, yes it has. It's just that you can't see the change in the graph. You've defined the grouping in the data that goes into the graph. But did you want to see different colours or different shapes? If so, then you need to map these to colour or shape attributes in the `aes( )` function.
+
+```{r}
+ggplot(data = PR, mapping = aes(x=ADY, y=AVAL, group = TRTA, 
+                                colour = TRTA, shape = TRTA)) + 
+  geom_point()
+```
+
+Mapping `group` attributes to column values in the `ggplot` function i.e. changing attributes for every level of a `group` variable means that subsequent `geom_` settings are applied to each level of the `group` variable.
+
+## 5. Identify the data series from each subject to create a "Spaghetti plot"
+
+This plot shows that while most subjects have ECG measurements on the same day, there are a few subjects that have ECGs at different times. What the plot does ***not*** show is how the points are grouped by individual i.e. each individual is measured multiple times, so how do we show which points are from the same subject?
+
+Before running the chunk below, have a guess what the plot will look like.
+
+```{r}
+ggplot(data = PR, mapping = aes(x=ADY, y=AVAL)) + 
+  geom_line()
+```
+
+In Step 4 above, we defined a `group` mapping to show data for each level of `TRTA`. We can use exactly the same technique here to show the data for each ***subject***. Add a `group` attribute within the `aes` function below to show the "spaghetti plot" that shows the heart rate data series for each subject. Hint: patients are identified using the `USUBJID` variable. Typically, spaghetti plots use one colour for the lines linking observations from the same subject so there is no need to specify a colour attribute here.
+
+```{r}
+plot1 <- PR %>%
+  ggplot(data = PR, mapping = aes(x=ADY, y=AVAL, group =  )) +
+  geom_line()
+
+plot1
+```
+
+Note that we're assigning the `{ggplot2}` plot to an object called `plot1`. This is a good idea, since it means we can pick up that object at any point and make modifications to it simply by using the `+` operator and making changes. `ggplot2` plot objects can have any attribute changed or added to using the `+` operator.
+
+## 6. Add labels (titles, axes labels) and choose a theme for the plot
+
+Change the text in the `labs()` statement below to make sensible titles and axes labels for the plot.
+
+```{r}
+plot2 <- plot1 + 
+  labs(title = "Plot Title",
+       subtitle = "Plot subtitle",
+       x = "X-axis label",
+       y = "Y-axis label",
+       caption = paste("Plot created on:",Sys.Date()))
+plot2
+```
+
+You can also choose a theme for the plot from a wide range of `{ggplot2}` themes. Other themes are available from a variety of `{ggplot2}` helper packages such as `{cowplot}`. Try out some different themes using `theme_...` functions to see which one you like best.
+
+```{r}
+plot3 <- plot2 +
+  theme_bw()
+plot3
+```
+
+## 7. Split by treatment arm
+
+The next thing we might want to do is to split the above plot (which shows ALL subjects in the trial) by treatment arm. To do this, we want to use a variable within the data to define which data goes in which panel. We do this using the `facet_` functions. `facet_grid` splits the data by one or more specified variables and arranges the plots in a grid on the page - one variable defining the rows and (optionally) another variable specifying the columns. `facet_wrap` takes ***one*** variable and creates a new plot for each distinct value of that variable and fills the page with as many plots as it can. Try out both here to see which one works best in this situation:
+
+```{r}
+plot4 <- plot3 +
+  facet_wrap(facets = "TRTA")
+plot4
+```
+
+Now that you know how, you can employ ANY variable to split the plot e.g. SEX, PERIOD, ...
+
+## 8. Save the plot
+
+Once you're ready to save the plot, you can use the `ggsave` function to render and externalise the plot in whatever format you need. It's a good idea to also save the final plot object using `saveRDS` as you can then read this object into R and make changes later.
+
+NOTE: If you are saving from this .rmd file then the plots and output object will be saved wherever this .rmd file is located.
+
+```{r}
+plot4 
+ggsave(filename = "myPlot.png", device = "png", width = 192, height = 108, units = "mm")
+saveRDS(object = plot4, file = "savedPlot.rds")
+```
+
+## 9. Add a summary statistic e.g. median
+
+The spaghetti plot may be useful, but it would be good to show the median heart rate so we can get a feel for how this changes for each treatment arm.
+
+We can do this using the built in {ggplot2} functions `stat_summary`.
+
+```{r}
+plot3 + 
+  stat_summary(geom = "point", fun = median, color = "red")
+```
+
+In the `plot3` object, we have a grouping attribute in the `ggplot` function call mapped to `USUBJID` from the dataset. By specifying this `group` aesthetic we are telling R that any `geom_` and `stat_` functions should use the same grouping. So that means that the `stat_summary` is attempting to display the median values at each time point ***for every subject.*** Which is probably NOT what we actually want, since there is only one observation per subject per time point.
+
+So how do we go back to one showing medians calculate across ALL subjects?
+
+```{r}
+plot3 +
+  stat_summary(mapping = aes(group = NULL), fn = median, colour = "red")
+```
+
+Not all subjects have been assessed for vital signs on the same day of the treatment period. Let's look at the same plot as above, but using the calculated variable `StudyWeek`.
+
+```{r}
+ggplot(data = PR, mapping = aes(x=StudyWeek, y=AVAL)) +
+  geom_point()
+```
+
+We can see that subjects have measurements on weeks between 0-30, and then a few individuals having measurements at week 40. 
+Let's filter down to the weeks 0, 5, 10, 15, 20, 25, 30  before applying the `stat_summary` function:
+
+```{r}
+dataWeeks <- PR %>%
+  filter(StudyWeek %in% c(0, 5, 10, 15, 20, 25, 30)) %>%
+  mutate(ADY = StudyWeek * 7)
+
+dataWeeks %>%
+ggplot(mapping = aes(x = StudyWeek, y = AVAL)) +
+  stat_summary(mapping = aes(group = NULL), 
+               fun = median, 
+               colour = "red")
+
+```
+
+Now we might want to superimpose these medians onto the spaghetti plots above. But observe that the `StudyWeek` variable needs to be rescaled to show "days" so that it can be plotted on the same x-axis scale.
+
+```{r}
+plot3 + 
+  stat_summary(data = dataWeeks,
+    mapping = aes(x = ADY,
+                             group = NULL), 
+               fun = median, 
+               colour = "red")
+
+```
+
+This plot illustrates how we can add a layer with new data (here, just the original data selecting the weeks we are interested in).
+
+## 10. Axis bounds
+
+Sometimes we want to limit the plot axes to "zoom in" on an area of the plot where most of the data are. If you specify `scale_y_continuous(limits=c(50, 120))` then points outside the range 50 - 120 are **removed**. If you specify `coord_cartesian(ylim=c(50, 120))` then you are effectively **zooming in** to a particular range. Any values outside that range will still exist and influence regression lines / smooths / medians, but are not shown. Typically we will want to "zoom in" rather than crop and eliminate observations outside of the range.
+
+```{r}
+plot4 + 
+  coord_cartesian(ylim=c(50, 120))
+```
+
+## 11. The ggplot2 object.
+
+Let's look at the `plot4` object in more detail. You can examine it using the Environment tab in RStudio IDE. Click on the magnifying glass to the right of the object. `plot4` is an R list with type `ggplot`. Within it you'll see it elements such as the data, layers, scales, mapping, theme, coordinates, facet, labels. This means that **at any time** you can extract information from a `ggplot` object and use it.
+
+To see the elements of a list in the RStudio IDE, go to the Environment tab and then click on the blue arrow to the left of the `plot4` object. This will show a huge amount of information about the plot - these are the plot attributes, which are contained in an R `list` format. To access an element of a list, you can use the `<objectName>$<listItemName>` syntax. Let's look at the `mapping` element of the `plot4` object:
+
+```{r}
+plot4$mapping
+```
+
+From this information, you'll see that the `x` and `y` attributes are being mapped to variable names `ADY` and `PARAM`. What we might want to do is to extract the variable ***names*** in these attributes and use them to determine labels for the plot.\
+\
+In programming, we sometimes want to use a variable name to tell us which column contains values, and sometimes we just want to use the name of that variable. In this case, because we want to just use the name, we need to tell R to turn the variable "pointer" to a character string. We do this using the `quo_name` function. We'll look more at how to refer to variables and use them in functions in a later Mini-Project.
+
+In the code below we have created a function called `uniqueVal`. This function is going to be used to extract information from dataset variables that can be used in axes labels. Again, in a future Mini-Project we'll look in more depth at creating your own functions. For now, just be aware that we've written a function to find the unique value of a given variable in the dataset. We have a little defensive programming that checks that the variable doesn't contain more than one unique value.
+
+By approaching the problem in this way, we avoid having to "hard code" axes labels and can more easily reuse code for different cases.
+
+```{r}
+xLab <- quo_name(plot4$mapping$x)
+yLab <- quo_name(plot4$mapping$y)
+groupLab <- quo_name(plot4$mapping$group)
+
+uniqueVal <- function(x){
+  if(length(unique(x))>1) simpleWarning(paste0("More than one value in column:",x))
+  unique(x)
+}
+
+study <- uniqueVal(plot4$data$STUDYID)
+measure <- uniqueVal(plot4$data$PARAM)
+
+xLab <- ifelse(xLab == "ADY", "Analysis Relative Day", xLab)
+groupLab <- case_when(groupLab == "USUBJID" ~ "Subject", 
+                      groupLab == "TRTA" ~ "Treatment",
+                      TRUE ~ groupLab)
+
+plot4 + 
+  labs(title = glue::glue("Study {study}"),
+       subtitle = glue::glue("Plot of {measure} by {groupLab}"),
+       x = xLab,
+       y = glue::glue("{measure}"))
+```
+
+## 12. Changing data
+
+Now for the clever bit. `{ggplot2}` allows you to change the dataset in a plot, and inheriting attributes from the previous plot. You do this using the `%+%` command. On the left of the `%+%` should be an object of type `ggplot` and on the right should be a dataset object.
+
+And if you use the code above to "guess" the labels for the plot from information within the data, then the labels automagically update themselves. Ideally, you might want to make the label guessing code into a function that takes the plot object as an input, but we'll come to functions shortly.
+
+```{r}
+SysBP <- ADVS  %>%
+  filter(PARAMN == 1) %>%
+  filter(VISITNUM > 3) 
+
+SysBP_plot <- plot4 %+%
+  SysBP
+
+xLab <- quo_name(SysBP_plot$mapping$x)
+yLab <- quo_name(SysBP_plot$mapping$y)
+groupLab <- quo_name(SysBP_plot$mapping$group)
+
+study <- uniqueVal(SysBP_plot$data$STUDYID)
+measure <- uniqueVal(SysBP_plot$data$PARAM)
+
+
+xLab <- ifelse(xLab == "ADY", "Analysis Relative Day", xLab)
+groupLab <- case_when(groupLab == "USUBJID" ~ "Subject", 
+                      groupLab == "TRTA" ~ "Treatment",
+                      TRUE ~ groupLab)
+
+SysBP_plot + 
+  labs(title = glue::glue("Study {study}"),
+       subtitle = glue::glue("Plot of {measure} by {groupLab}"),
+       x = xLab,
+       y = glue::glue("{measure}"))
+```
+
+## Challenge
+
+Do the same for Diastolic BP and Temperature. Ensure that the axes labels match the type of data used.\
+Update `plot4` for the new endpoint.
+
+## Extra challenge
+
+Read in vital signs data from another study which uses the `VS` or `ADVS` dataset standards. What code needs to change when you produce Pulse Rate plot for the new dataset (compared to the Pulse Rate plot which uses data values to determine labels)?
+
+```{r}
+sessioninfo::session_info()
+```

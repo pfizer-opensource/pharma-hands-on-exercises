@@ -1,0 +1,177 @@
+---
+title: "Mini-project13 - Code style"
+author: "Mike K Smith"
+output: html_document
+date: "2023-05-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Why?
+Code style helps your colleagues read and understand what your code does (vital for QC) and also helps "future you" to remember what you were doing if and when you revisit code later.  Even if "programmer" is not in your job description, there are certain standards and good practices that you should be aware of to make sure that the code you write can be understood by "future you", or any third party. 
+
+### TL;DR+ summary:
+ - Use a consistent style. We suggest the tidyverse style guide because there are tools to easily implement it within the RStudio IDE.  
+ - Capture the R session and environment information using session_info() or the {logrx} package function axecute(). Do this as a matter of routine.  
+ - Unless you are writing R code functions as part of an R package, start your work using an {rmarkdown} document, write a narrative around your code and render to HTML.  
+ - Don’t Repeat Yourself: Write, document and test functions. Simple functions compose into more complex functions. Help others by providing “guard rails” to prevent bad things happening with your functions.  
+  
+(+ - “Too Long; Didn’t Read”)
+
+In this MiniProject we're going to look at use of consistent style and how the RStudio IDE can help you tidy up your code.
+
+First we need some filthy, dirty code:
+
+```{r}
+library(rio)
+library(tidyverse)
+library(gt)
+library(readr)
+
+## Code by Mike K Smith
+## Original October 2023
+## Last modified December 2022
+## This code will calculate the demography summary by treatment and SEX. This code assumes that "M"="MALE" and "F"="FEMALE".
+
+adsl_saf = import("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt") %>% filter(SAFFL == "Y")
+  
+  BIGNcnt=  adsl_saf   %>%
+    group_by(   TRT01AN,TRT01A  ) %>%
+    count(name="N")
+
+  ## Calculating count for each category of SEX
+  
+  small_n_cnt=adsl_saf  %>%
+    group_by( TRT01AN, TRT01A,  SEX ) %>%
+    count(name = "n")
+  small_n_cnt
+  
+  adsl_mrg_cnt<-small_n_cnt %>%
+    left_join(BIGNcnt, by = c("TRT01A", "TRT01AN")) %>%
+    mutate(perc = round((n/N)*100, digits=1), perc_char = format(perc, nsmall=1), npct = paste(n, 
+                        paste0( "(", perc_char, ")" ) 
+                        ) 
+           ) %>%
+    mutate(SEX = recode(SEX, "M" = "Male", "F" = "Female")) %>% ungroup() %>% select(TRT01A, SEX, npct) %>% pivot_wider(names_from=TRT01A,values_from=npct)
+  
+  adsl_mrg_cnt
+  
+      BIGNcnt =  adsl_saf   %>%
+    group_by( TRT01AN, TRT01A  ) %>%
+    count(name = "N")
+
+  ## Calculating count for each category of SEX
+      
+  small_n_cnt = adsl_saf  %>%
+           group_by( TRT01AN, TRT01A,  AGEGR1 ) %>%
+        count(name = "n")
+  small_n_cnt
+  
+  adsl_mgr_cnt <- small_n_cnt %>%
+                                   left_join(BIGNcnt, by = c("TRT01A", "TRT01AN")) %>%
+    mutate(perc = round((n/N)*100, digits=1), perc_char = format(perc, nsmall=1), npct = paste(n, 
+                        paste0( "(", perc_char, ")" ) 
+                        ) 
+           ) %>% ungroup() %>% select(TRT01A, AGEGR1, npct) %>% pivot_wider(names_from = TRT01A, values_from = npct)
+  
+  adsl_mgr_cnt
+
+BIGNcnt =  adsl_saf   %>%
+group_by( TRT01AN, TRT01A  ) %>%
+count(name = "N")
+
+  ## Calculating count for each category of SEX
+
+small_n_cnt = adsl_saf  %>%
+group_by( TRT01AN, TRT01A,  RACE ) %>%
+count(name = "n")
+small_n_cnt
+  
+adsl_mrg_cnt <- small_n_cnt %>%
+left_join(BIGNcnt, by = c("TRT01A", "TRT01AN")) %>%
+mutate(perc = round((n/N)*100, digits=1), perc_char = format(perc, nsmall=1), npct = paste(n, 
+                        paste0( "(", perc_char, ")" ) 
+                        ) 
+           ) %>%
+mutate(SEX = recode(SEX, "M" = "Male", "F" = "Female")) %>% ungroup() %>% select(TRT01A, SEX, npct) %>% pivot_wider(names_from = TRT01A, values_from = npct)
+  
+  adsl_mrg_cnt
+```
+
+## Indentation = RStudio IDE shortcut CTRL+I
+The first EASY thing to do is to sort out indentation. You can fix this by selecting
+the code you want to reformat in the RStudio IDE and then using the Code menu
+item "Reindent code" or shortcut CTRL+I. Copy the code above into the chunk below and try the RStudio IDE "Reindent" option...
+
+```{r}
+
+```
+
+## Reformatting = RStudio IDE shortctu CTRL+SHIFT+A
+Similarly you can use the Code menu item "Reformat code" to both indent and 
+reformat or reflow lines of your code. Note that this doesn't COMPLETELY reformat
+problems in the code below, but it's BETTER. Copy the code above into the chunk below and try the RStudio IDE "Reformat" option...
+
+```{r}
+
+```
+
+## Specific style issues - BE CONSISTENT
+
+When it comes to code style, there are MANY different style guides that you can
+choose from. My advice is to PICK one and then apply it CONSISTENTLY. It's MORE
+important to be CONSISTENT than to be PICKY about style.
+  
+  1. Use `<-` rather than `=`
+  2. Use a consistent naming convention: 
+    * snake_case
+    * camelCase
+  3. Use spaces consistently. 
+    * There should be spaces around "<-"
+    * There should be a space after commas
+  4. Use line breaks sensibly
+    * There should be a line break after `{` in function definitions
+    * There should be a line break after `%>%` or `|>`
+    * There should be a line break after `+` in {ggplot2} layers
+    * If a function has multiple arguments, you can split across lines to make it easier to read the function arguments.
+    
+You can quickly rename things in the RStudio IDE by highlighting the item and selecting the Code menu item "Rename in scope" or CTRL+ALT+SHIFT+M. For example, rename the item `BIGNcnt` in the code and replace it with `big_n_cnt` in order to be consistent with `small_n_cnt`.
+
+Using line breaks in function calls often makes it easier to see what is being done, rather than loading everything into a single line. In the code above, find the `recode` function call within the `mutate` statement and put the different cases onto separate lines like this:
+
+```
+mutate(SEX = recode(SEX, 
+                    "M" = "Male", 
+                    "F" = "Female"))
+```
+
+Using indenting here, also means that the `=` line up. The benefit here is that we can easily see that we're recoding the `SEX` variable, that the values in that column are "M" and "F" and that we're recoding these to "Male" and "Female" respectively. This example is trivial, but when / if we change to a different variable where there are more options (like `AGRGR1`) then we might want to quickly see that we have recoded all possible options.
+    
+## Check comments
+
+It's often tempting to ignore commented lines. But your comments should tell others (and remind future YOU) contextual information about the code. They provide narrative about what is happening in the code ***AND WHY***. It's easy to read your code and figure out WHAT is happening, but often the WHY and context is skipped over.
+
+Read the comments. Check that they are still correct and relevant. If not, update them.
+
+## Don't load more libraries than you need.
+
+Every time you load a library you also load its dependencies. Why load a package if it's not needed in the code? When you are developing code it's tempting to load the {tidyverse} library so that everything you need is at your fingertips. But once the code is done, it may be more sensible to strip back to only the packages you needed. e.g. Didn't make a graph? Why load {ggplot2}?
+
+Copy the original code into the chunk below and try to tidy it up.
+
+```{r}
+
+```
+
+## Don't Repeat Yourself - DRY principle
+
+Notice that we have three different code chunks that effectively do the same task. Somebody has copy and pasted the same code three times to make the calculation for different demography characteristics. This is problematic. Not least because it can introduce errors, as in the case above. Also, if you make a typo in the code (as in the case above) then it can sometimes be hard to pinpoint. Can you spot it?
+
+Note also that the code calculates the `BIGNcnt` three times. Which is just unnecessary. We now know about functions. So what could we do here? Copy and paste your tidied code above into the chunk below and try to resolve this issue using your experience at writing functions.
+
+```{r}
+
+```
+

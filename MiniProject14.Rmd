@@ -1,0 +1,174 @@
+---
+title: "Mini-project 14 - R snippets"
+author: "Leanne Vicente"
+date: "5/15/2023"
+output: html_document
+---
+
+## Overview
+
+Code snippets are text macros that are used for quickly inserting common snippets of code. (Similar to the Snippets options on SAS Studio). It can be used for inserting common pieces of code, or for setting up templates for programmers to follow. They are a great way to save time when writing scripts. 
+
+All code snippets are stores in a special RStudio text file that you can navigate through the menus.
+Go to Tools -> Global Options -> Code -> Edit Snippets.
+
+To insert a snippet, in your R script or RMarkdown file, start typing in the name of the snippet. For example, if you type 'fun', you would see a few options automatically & you will notice that the first option is 'fun' snippet. when you select that, it would insert an R function definition as noted below:
+
+
+```{r function1}
+
+```
+
+If you select the snippet from the completion list, it will be inserted along with several text placeholders which you can fill in by typing and then pressing Tab to advance to the next placeholder:
+
+```{r function2}
+name <- function(variables) {
+  
+}
+```
+
+Snippets are a great way to automate the insertion of commonly used code, and are available for R, C/C++, JavaScript, and several other languages.
+By default, the completion list will show up automatically when you pause typing, but it can also be manually activated via the Tab key.
+If you have typed the character sequence for a snippet and want to insert it immediately (without going through the completion list), you can press Shift+Tab.
+*NOTE*: that for Markdown snippets within R Markdown documents, you always need to use the Shift+Tab sequence as there is no standard tab completion available within the Markdown editing mode.
+
+## Common Useful Snippets
+1. `lib` = library()
+2. `req` = require()
+3. `source` = source() 
+4. 	`df` for defining data frames
+5.	`mat` for defining matrices
+6.	`if`, `el`, and `ei` for conditional expressions
+7.	`apply`, `lapply`, `sapply`, etc. for the apply family of functions
+8.	`shinyapp` for defining a basic shiny app structure
+
+
+```{r common_snip}
+
+```
+
+## Customizing Snippets
+Like in SAS Studio, you can also create your own snippets and save them for future use. You can also edit the built-in snippet definitions to make them more specific to your needs. 
+
+You can  get to the snippets file by using the `usethis` package from Console, which has a function `edit_rstudio_snippet()` that will pop open the file for editing.
+
+```{r usethis}
+install.packages("usethis")
+library(usethis)
+edit_rstudio_snippets(type = c("r"))
+```
+
+This will open up the snippets for R code, but there are several different types of snippets that you can write. Sub in the snippet type you want to edit the snippets. Here is a list of different code types you can write snippets for:
+- "r" 
+- "markdown"
+- "c_cpp"
+- "css"
+- "html"
+- java"
+- "javascript"
+- "python",
+- "sql"
+- "stan"
+- "tex"
+
+Reminder to see the file through menus, go to Tools -> Global Options -> Code -> Edit Snippets.
+
+All Snippets are defined using the `snippet` keyword. The contents of the snippet should be indented below using the *Tab* key (as opposed to using spaces). Variables can be defined using the form `{1:varname}`. Also the `$` is used as a special character to denote where the cursor should jump after completing each section of a snippet, in order to insert a literal $ it must be escaped as `\$`. 
+
+To add a new snippet, scroll down to the bottom of the snippet editor to add your snippet. Each snippet starts with the word `snippet` at the beginning of a line, followed by a space, and then the name of the snippet.
+
+You might want to setup a naming convention for user created snippets, so you can tell what are yours and what are the built-in snippets. Ex. Starting snippet names with my_underscore, or with your user name or initials. That way, when you start typing `my_` in the script window, all your user created snippets show up in the drop-down list. 
+
+You can use snippets to create a template for how a program should be setup, to load your frequently used libraries, or for saving code for a plot, with all the colors, labels, titles, and specifications set exactly as you wanted. 
+
+*NOTE*: that every line after snippet [snippet name] must start with a single tab. If you use spaces to indent the code, the snippet won’t work. Otherwise, write your code as usual. 
+Click Save and exit the Preferences window. Now, you can use your snippet. In the console, an RMarkdown document, or an R script, type your snippet name and then hit tab. Your code should appear. 
+
+## Snippet Examples
+# Header Template
+
+One of the uses for snippets is to create a header template that programmers can use for all of their scripts. Feel free to use this one as a starting point for your own program header.
+```{r header_snip}
+######################################################################
+#
+#Purpose: To create ${1:plot_type}  Plot
+#' ---
+#' title: ""
+#' author: ""
+#' date: ""
+#' ---
+#
+#Assumptions: -None-
+#
+#Calls to: ${2:plot_name}.R
+#
+#Inputs: 
+#  ${3:data_input}.sas7bdat
+#          
+#Outputs: PDF/HTML Graph file depending on TOT 
+#
+#References: 
+#   refer to graph mocks
+#
+#Usage notes: This report is plotted at subject level.
+######################################################################
+#History
+######################################################################
+#Revision    Author        Date       Description
+#1.1       ${4:author}    ${5:date}    Initial Creation
+######################################################################
+
+```
+ 
+
+# Library Snippet
+This snippet will set your working directory, and then also load whatever packages you need or use most often.
+
+```{r}
+######################################################################
+path1 <- getwd()
+
+library(knitr)
+library(tinytex)
+library(rio)
+library(tidyverse)
+library(rmarkdown)
+######################################################################
+
+```
+
+
+# Plot Snippet
+If you spend a fair amount of time setting up and adjusting a graph to be just the way you want it, you want to be able to use it again!
+
+```{r}
+######################################################################
+ggplot(${1:data}, aes(x=${2:variable}, y=${3:variable})) + 
+  geom_col(color = "black", fill="#0072B2") +
+  theme_minimal() +
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "gray"),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)
+  ) +
+  scale_y_continuous(label = comma) + 
+  xlab("") +
+  ylab("") +
+  geom_text(aes(label=${3:variable}), vjust=1.5, colour="white", position=position_dodge(.9), size=5) +
+  ggtitle("<Enter Text>", subtitle = "<Enter Text>")
+######################################################################
+
+```
+
+Reminder, in Mini Projects 7 and 11 we discussed writing functions for chunks of code that you use again and again. You could also create a function for the above code for reuse. 
+
+
+##References
+-	https://rstudio.github.io/rstudio-extensions/rstudio_snippets.html 
+-	https://support.posit.co/hc/en-us/articles/204463668-Code-Snippets 
+-	https://dcl-workflow.stanford.edu/rstudio-snippets.html 
+-	https://www.infoworld.com/article/3396616/how-to-use-rstudio-code-snippets.html 
+-	https://usethis.r-lib.org/ 
+- https://cran.r-project.org/web/packages/usethis/index.html 
+- https://usethis.r-lib.org/reference/edit.html
+

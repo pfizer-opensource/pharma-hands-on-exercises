@@ -1,0 +1,353 @@
+---
+title: "Mini-project 9 - Reproducible examples and {reprex}"
+author: "Leanne Vicente"
+date: "3/8/2023"
+output: html_document
+---
+
+```{r packages}
+#install.packages("reprex") 
+library(reprex)
+library(tidyverse)
+library(rio)
+```
+
+Reprex stands for reproducible example! This is a new package for this series of Mini Projects. (It can also be one of the many packages that are installed when you install tidyverse, you can check and see if you already have it installed by looking at your Packages tab) reprex is a convenience wrapper that uses the 'rmarkdown' package to render small snippets of code to target formats that include both code and output. The goal is to encourage the sharing of small, reproducible, and runnable examples. When somebody helps debug your code, it helps if they don't need to work hard to reformat code, strip out results and command prompts, and not have to guess what packages you've loaded. This is great for re-producing code, or de-bugging in a group of colleagues. Reprex packages your code, output, and information about your problem so that others can easily run it and help fix the error. \*\*\* Do this instead of taking a screenshot of your R session! \*\*\* If you send a screenshot of your error, then anyone helping you cannot directly re-run your code, has to re-type your code (and inevitably there will be typos and mistakes in the transcription). It's HORRIBLY inefficient...
+
+Outputs runnable code + output as Markdown files, R code, or as plain HTML text
+
+1.  The most basic example. To run the reprex, copy all the below code by using Ctrl + C and then running reprex() in your console pane
+
+```{r}
+(y <- 1:4)
+mean(y)
+```
+
+```         
+(y <- 1:4)
+#> [1] 1 2 3 4
+mean(y)
+#> [1] 2.5
+Created on 2023-03-08 with reprex v2.0.2
+```
+
+This will create a reprex over in the Viewer pane (most likely bottom right section of your R Studio screen) You will see it packages all your code and outputs into a chunk of code that can be copied and pasted into an email, Teams space, presentation, forum etc. The key thing is that if someone else wants to re-run this code, they can do so without having to change ANYTHING.
+
+It ALSO copies the contents of that window back to your clipboard so you can simple PASTE into an email or MS Teams post.
+
+2.  Now, lets take some code that we used back in the first round of mini projects to recode the variable SEX and look at the reprex for that. So again, copy all code in the following chunk, and then type reprex() into your console at the bottom of you screen.
+
+```{r age data}
+
+adsl <- import("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt")
+
+adsl_saf <- adsl %>%
+  filter(SAFFL == "Y" ) %>%
+  mutate(SEX = recode(SEX, "M" = "Male", "F" = "Female"))
+```
+
+This gives us a nicely rendered HTML preview that will display in RStudio's Viewer. This is preferable to a screenshot because anyone else can copy, paste, and run this immediately.
+
+You'll see here, that the error we are getting is that reprex couldn't find the `read_xpt` function nor identify the pipe "%\>%" function. This is because while we have loaded tidyverse in our R environement, it was not included in the reprex.
+
+```         
+adsl <- read_xpt("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt")
+#> Error in read_xpt("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt"): could not find function "read_xpt"
+
+adsl_saf <- adsl %>%
+  filter(SAFFL == "Y" ) %>%
+  mutate(SEX = recode(SEX, "M" = "Male", "F" = "Female"))
+#> Error in adsl %>% filter(SAFFL == "Y") %>% mutate(SEX = recode(SEX, M = "Male", : could not find function "%>%"
+Created on 2023-03-08 with reprex v2.0.2
+```
+
+## What to include in a Reproducible Example:
+
+1.  Background information -- what are you trying to do? What have you already done
+
+2.  Complete set up -- include any library() calls and data needed to reproduce your issue
+
+    a.  (so my code from above is actually not correct because I have my library statements in a different R chunk)
+
+3.  Keep it simple -- only include the minimal code required to reproduce your error on the data provided
+
+4.  So a better version of the code above would be: Copy all the code in this chunk and then run reprex() in your console.
+
+```{r}
+library(tidyverse)
+library(rio)
+
+#reading in ADSL data
+adsl <- import("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt")
+
+#filtering ads for SAFFL and recoding the variable SEX
+adsl_saf <- adsl %>%
+  filter(SAFFL == "Y" ) %>%
+  mutate(SEX = recode(SEX, "M" = "Male", "F" = "Female"))
+
+```
+
+Here you have everything in one nice neat chunk of code. You'll see here that there may still be some "Warnings" coming in, but not the kind of warnings that stop the chunk from working. We are getting Warnings about package versions. This doesn't mean the code won't/doesn't work. Its just letting others know what versions of the packages you have downloaded into your R. However you will see that now the warning about the pipe (%\>%) is gone.
+
+4.  Now lets look at a slightly more complicated example. This is some code that was originally used in Mini Project 6. Copy all the code in this chunk and then run reprex() in your console. NOTE: It may take a moment for the data to load.
+
+```{r}
+library(tidyverse)
+library(rio)
+
+ALT <- import("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adlbhy.xpt") %>%
+  filter(PARAMCD == "ALT")
+
+ALT2 <- ALT %>%
+  filter(VISITNUM > 3) %>%
+  mutate(WEEK = floor(ADY/7))
+
+TREATfac <- ALT2 %>%
+  select(TRTA, TRTAN) %>%
+  unique() %>%
+  arrange(TRTAN) %>%
+  mutate(TREATMENT = factor(TRTA, ordered = TRUE))
+
+ALT2 <- ALT2 %>%
+  mutate(TREATTXT = factor(TRTP, levels = TREATfac$TRTA))
+
+```
+
+```         
+library(tidyverse)
+#> Warning: package 'tidyverse' was built under R version 3.5.3
+#> Warning: package 'ggplot2' was built under R version 3.5.3
+#> Warning: package 'tibble' was built under R version 3.5.3
+#> Warning: package 'tidyr' was built under R version 3.5.3
+#> Warning: package 'readr' was built under R version 3.5.3
+#> Warning: package 'purrr' was built under R version 3.5.3
+#> Warning: package 'dplyr' was built under R version 3.5.3
+#> Warning: package 'stringr' was built under R version 3.5.3
+#> Warning: package 'forcats' was built under R version 3.5.3
+library(haven)
+#> Warning: package 'haven' was built under R version 3.5.3
+
+ALT <- read_xpt("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adlbhy.xpt") %>%
+  filter(PARAMCD == "ALT")
+
+ALT2 <- ALT %>%
+  filter(VISITNUM > 3) %>%
+  mutate(WEEK = floor(ADY/7))
+
+TREATfac <- ALT2 %>%
+  select(TRTA, TRTAN) %>%
+  unique() %>%
+  arrange(TRTAN) %>%
+  mutate(TREATMENT = factor(TRTA, ordered = TRUE))
+
+ALT2 <- ALT2 %>%
+  mutate(TREATTXT = factor(TRTP, levels = TREATfac$TRTA))
+Created on 2023-03-08 with reprex v2.0.2
+```
+
+Again as long as we have the necessary packages included in the reprex, there's no problems with this code.
+
+5.  Looking at reprex including a plot.
+
+```{r}
+library(tidyverse)
+library(rio)
+
+
+ALT <- import("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adlbhy.xpt") %>%
+  filter(PARAMCD == "ALT")
+
+
+ALT2 <- ALT %>%
+  filter(VISITNUM > 3) %>%
+  mutate(WEEK = floor(ADY/7))
+
+ALT2 %>%
+  filter(WEEK %in% c(0, 5, 10, 15, 20, 25, 30)) %>%
+  ggplot() +
+  geom_boxplot(mapping = aes(x = as.factor(WEEK), y = AVAL))
+```
+
+```         
+library(tidyverse)
+#> Warning: package 'tidyverse' was built under R version 3.5.3
+#> Warning: package 'ggplot2' was built under R version 3.5.3
+#> Warning: package 'tibble' was built under R version 3.5.3
+#> Warning: package 'tidyr' was built under R version 3.5.3
+#> Warning: package 'readr' was built under R version 3.5.3
+#> Warning: package 'purrr' was built under R version 3.5.3
+#> Warning: package 'dplyr' was built under R version 3.5.3
+#> Warning: package 'stringr' was built under R version 3.5.3
+#> Warning: package 'forcats' was built under R version 3.5.3
+library(haven)
+#> Warning: package 'haven' was built under R version 3.5.3
+
+ALT <- read_xpt("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adlbhy.xpt") %>%
+  filter(PARAMCD == "ALT")
+
+
+ALT2 <- ALT %>%
+  filter(VISITNUM > 3) %>%
+  mutate(WEEK = floor(ADY/7))
+
+ALT2 %>%
+  filter(WEEK %in% c(0, 5, 10, 15, 20, 25, 30)) %>%
+  ggplot() +
+  geom_boxplot(mapping = aes(x = as.factor(WEEK), y = AVAL))
+Created on 2023-03-08 with reprex v2.0.2
+```
+
+You'll see reprex doesn't really change even though we are creating a plot here. Over in the Viewer pane, we see the reprex, and then the output graph is shown below it, but its not actually part of the reprex.
+
+BUT... these last two examples are not ***minimally reproducible examples***. In order to re-run this, someone helping has to have access to your database and/or the dataset you're referencing. And if that dataset is large or takes a while to read, then it's overhead for the problem solving process, if what you're REALLY asking about is the plot code. So how can we make this problem statement smaller and more "minimal"?
+
+5.5 A brief side step into tribbles. For our next example, we're going to use the `tribble()` function. So what is a tribble? A tribble is a quick and simple way to set up a small data set. It's IDEAL for use in a reprex.
+
+To create a tribble, first you need to define your variable names, like you would in datalines or cards in SAS. Here you don't need to specify character or numeric types for the variables. R will be able to determine that for us. Note you also don't need to specify the end of the record for each data row. Simply separate values by columns and the `tribble` function takes care of the rest for you.
+
+To create the variable names, start with a '\~' character and then the variable name, and then type your values with comma separation.
+
+```{r}
+myData <- tribble(
+  ~Treatment, ~value,
+  "Placebo", 1,
+  "Placebo", 2,
+  "Active", 3,
+  "Active", 4
+)
+
+myData
+```
+
+We can see here that myData is a data frame with 4 rows and two columns. Treatment is a character variable and value is a dbl (numeric) variable. Creating something very pared down and simple for reprex can be incredibly helpful because it takes less computing time ***and*** narrows down the issue to only the variables that are needed.
+
+If you're creating a reprex to ask about a plot, and your code has three steps of data manipulation before this, don't replicate the data manipulation. Jump straight in with a `tribble` describing the format of the data that goes into the plot. And don't guess what the output of that data manipulation is and specify an "idealised" tribble. Inspect the data you have after manipulation and pass only those columns needed in the plot exactly as you see them in the manipulated data. You can use random values for continuous outcomes if you like. The point is often not what the ***values*** are necessarily, more it's to do with the structure of the data.
+
+6.  Reprex for a user created function.
+
+```{r}
+library(dplyr)
+library(tidyverse)
+
+myData <- tribble(
+  ~Treatment, ~value,
+  "Placebo", 1,
+  "Placebo", 2,
+  "Active", 3,
+  "Active", 4
+)
+
+myData
+
+myFunction1 <- function(data){
+  output <- data %>%
+    group_by(Treatment) %>%
+    summarise(n = n())
+  output
+}
+
+myFunction1(myData)
+```
+
+```         
+library(dplyr)
+#> Warning: package 'dplyr' was built under R version 3.5.3
+#> 
+#> Attaching package: 'dplyr'
+#> The following objects are masked from 'package:stats':
+#> 
+#>     filter, lag
+#> The following objects are masked from 'package:base':
+#> 
+#>     intersect, setdiff, setequal, union
+library(tidyverse)
+#> Warning: package 'tidyverse' was built under R version 3.5.3
+#> Warning: package 'ggplot2' was built under R version 3.5.3
+#> Warning: package 'tibble' was built under R version 3.5.3
+#> Warning: package 'tidyr' was built under R version 3.5.3
+#> Warning: package 'readr' was built under R version 3.5.3
+#> Warning: package 'purrr' was built under R version 3.5.3
+#> Warning: package 'stringr' was built under R version 3.5.3
+#> Warning: package 'forcats' was built under R version 3.5.3
+
+myData <- tribble(
+  ~Treatment, ~value,
+  "Placebo", 1,
+  "Placebo", 2,
+  "Active", 3,
+  "Active", 4
+)
+
+myData
+#> # A tibble: 4 x 2
+#>   Treatment value
+#>   <chr>     <dbl>
+#> 1 Placebo       1
+#> 2 Placebo       2
+#> 3 Active        3
+#> 4 Active        4
+
+myFunction1 <- function(data){
+  output <- data %>%
+    group_by(Treatment) %>%
+    summarise(n = n())
+  output
+}
+
+myFunction1(myData)
+#> # A tibble: 2 x 2
+#>   Treatment     n
+#>   <chr>     <int>
+#> 1 Active        2
+#> 2 Placebo       2
+Created on 2023-03-08 with reprex v2.0.2
+```
+
+## Last minute dos and don'ts.
+
+-   DON'T start a chuck with rm(list = ls()). You'll wipe out the current environment of the person who is trying to help you. Which they probably won't appreciate. (The workspace is like a SAS working directory and this command would be like executing a SAS kill ).\
+-   DON'T start with a setwd("C:/Users/<yourUsername>/Documents/") because it won't work on someone else's computer.
+-   Call ONLY the packages you need to illustrate the problem.
+-   ONLY include code that illustrates your problem.
+-   Include the ***smallest*** dataset that illustrates the problem.
+-   If you are creating files in your reprex package, DO delete them when you're done, again so you're not messing up someone elses workspace.
+
+More dos and dont's here: <https://reprex.tidyverse.org/articles/reprex-dos-and-donts.html>
+
+## Additional resources:
+
+"Help me help you: Creating reproducible examples with reprex" by Jennifer Bryan:
+
+-   <https://reprex.tidyverse.org/articles/learn-reprex.html>
+
+-   <https://posit.co/resources/videos/help-me-help-you-creating-reproducible-examples/>
+
+## Gotchas
+
+-   Did you forget to include all the required `library()` calls?
+-   Does the data / tibble you're using have ALL the variables you need?
+-   Did you run `reprex::reprex()` but then run it again without copying new content into the clipboard? `reprex` will warn you if you do this, because it copies the results of `reprex` to the clipboard, if you run `reprex` again, it will try to run `reprex` on the output of the previous `reprex`.
+
+## Final notes:
+
+creating a great reprex requires work. You are most likely creating a reprex because you're asking other people to do work for you. It's a partnership. Often times, you will solve your own problem in the course of writing an excellent reprex. And when that doesn't happen, you'll have a reprex that you can easily share with others so that they can help you solve your problem.
+
+## Challenge: What Went wrong here
+
+Create a more minimal reprex that will help someone else understand and help you fix the problem.
+
+```{r}
+library(tidyverse)
+library(rio)
+
+adlb <- import("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adlbh.xpt")
+
+BICARB <- adlb %>%  
+    filter(SAFFL == "Y") %>% 
+    filter(PARAMCD == "BASO")
+
+
+ggplot(data = BICARB,
+       mapping = aes(x = ADY, y = AVAL)) +
+  geom_point(aes(colour = "THERAPY1"))
+```

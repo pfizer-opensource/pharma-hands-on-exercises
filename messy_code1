@@ -1,0 +1,42 @@
+a <- c(1, 2, 3)
+b <- c(4, 5, 6)
+c <- a + b
+
+for(i in 1:10){
+print(i)
+}
+
+data <- c(1, 2, 3, 4, 5)
+new_data <- c()
+for(i in 1:length(data)){
+  new_data[i] <- data[i] * 2
+}
+
+# do some stuff
+a <- c(1, 2, 3)
+# do some more stuff
+b <- a + 2
+# do something else
+print(b)
+
+a=1:5;b=c(6,7,8);c=9:11
+d=a*b*c
+for(i in 1:3) {
+if(d[i]>100) print(d[i])
+}
+
+library(dplyr)
+data <- data %>%
+  filter(column1 > 0) %>%
+  select(column1, column2)
+  library(dplyr)
+data <- data %>%
+  mutate(column1 = column1 * 2) %>%
+  mutate(column1 = column1 / 2) %>%
+  mutate(column1 = column1 + 1)
+  
+  library(dplyr)
+data <- data %>%
+  group_by(column1) %>%
+  summarise(column2_mean = mean(column2))
+ data <- read_csv("data.xlsx")

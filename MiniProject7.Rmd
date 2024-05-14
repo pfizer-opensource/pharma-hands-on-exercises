@@ -1,0 +1,340 @@
+---
+title: "Mini-project 7 - Getting started writing functions"
+author: "Mike K Smith"
+date: "3/2/2023"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(haven)
+```
+
+## 1. Introduction
+
+We will introduce functions, how to write functions and how to troubleshoot when something goes wrong in a function. Functions are really important in using R. **The rule of thumb is if you copy code more than twice, you should write a function**. R packages which you import using the `library( )` statement are essentially collections of functions, documentation, tests and occasionally data. As we go further down our journey learning R it will be more and more important to understand how to use functions, how to write them and how to extend them to do different things.
+
+A function is a little like a SAS Macro. When you first write the function you will want to convert from "open" code, identifying the input (data, list or object) and deciding what operations you want to apply to that object. Then, as you refine the function you can add arguments which will allow the user to tailor actions depending on the values of those arguments. We'll look at how to achieve this within this MiniProject.
+
+To illustrate this we will return an example from MiniProject 2 where we calculated the number of observations within a dataset and calculated numbers and proportions within a category. Recall that section
+
+```{r}
+adsl_saf <- import("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt") %>%
+    filter(SAFFL == "Y")
+  
+  Big_N_cnt <- adsl_saf %>%
+    group_by( TRT01AN, TRT01A  ) %>%
+    count(name = "N")
+  Big_N_cnt
+  
+  small_n_cnt <- adsl_saf %>%
+    group_by( TRT01AN, TRT01A,  SEX ) %>%
+    count(name = "n")
+  small_n_cnt
+  
+  adsl_mrg_cnt <- small_n_cnt %>%
+    left_join(Big_N_cnt, by = c("TRT01A", "TRT01AN")) %>%
+    mutate(perc = round((n/N)*100, digits=1)) %>%
+    mutate(perc_char = format(perc, nsmall=1)) %>%
+    mutate(npct = paste(n, 
+                        paste0( "(", perc_char, ")" ) 
+                        ) 
+           ) %>%
+    mutate(SEX = recode(SEX, 
+                        "M" = "Male",
+                        "F" = "Female")) %>%
+    ungroup() %>%
+    select(TRT01A, SEX, npct) %>%
+    pivot_wider(names_from = TRT01A, values_from = npct)
+  
+  adsl_mrg_cnt
+```
+
+## 2. Features of a function
+
+Looking at the above code, we might want to run the same code for the `adsl` dataset from a different study. We could copy the code, but it might be more useful to turn the code above into a function if we wish to perform the same action across multiple studies.
+
+#### Function structure
+
+Functions in R have a few key attributes:
+
+-   Function name
+
+-   Function inputs and arguments
+
+-   Function body where you write code.
+
+-   A returned object from the code (or sometimes not an object but an action, which in R we call a "side-effect"). For example we might return data (an object) but we might write data to a file (a side-effect).
+
+#### Function name
+
+Function names are hard. You need to pick a name that isn't going to clash with an existing function from a library that you're using (or likely to use). For example, calling a function `mean` should probably be avoided as most folks will have a good idea what the default `mean` function should do. The function name should be ***descriptive***, and is probably better as a verb: `addLabels` is better than `myFunction4`. I choose verbs because you are ***doing*** something to the inputs.
+
+You can check whether the named function already exists. Copy and paste the following code to the Console.
+
+    ??mean
+
+#### Function arguments
+
+Functions don't ***need*** to have arguments, but they typically do. In the {tidyverse} the first argument is usually the input object or data. This is so that you can easily put the function into a {tidyverse} pipeline. Other arguments help the user of the function to tweak settings or make choices about what the function does. When you first write a function it's a good idea to reduce the number of arguments to an absolutely minimum until you get the basics working. Then you can slowly add arguments.
+
+#### Function body
+
+This is where the code lives. If you have more than one line of code, then you should put the body of the function in curly brackets: `{ }`. The last thing that you write in the function body is the returned object from the function.
+
+***NOTE:*** Within the function body, R uses a new environment. This means that variables and objects you create inside the function ***stay inside the function*** unless you make them available in the returned object. This can cause difficulties and confusion when you try to debug functions, but we'll look at that separately later.
+
+You can call functions from within functions (*ad infinitum*). This is a useful trick since you can build up helper functions and use these in higher-level functions and essentially this is how many R packages are built - wrapping up functions into a bundle and them making them available to share. This also means that debugging functions can get a little hairy as you go down the rabbit hole.
+
+#### Returned object
+
+Because the objects we create in a function exist in a whole separate environment, we need to tell R which ones to return back to us when the function is finished. These objects are what is known as the "returned" values. If you are writing a function that will be used in a tidyverse workflow, it's a good idea to return a `tibble`. This means you can continue to pipe the returned object forward to another step. If you're working outside of a tidyverse workflow (or if your function is the "last step") then you have more flexibility in returning whatever you like. Your function ***does not have to*** return an object, for example if your function writes data to file.
+
+In the tidyverse then, `tibbles` are our preferred output object. Apart from `tibbles`, a good catch all object is a `list` object, since this can contain a collection of items including data, vectors, other lists etc.
+
+Here are some examples.
+
+-   `myFunction1` below does not return an object, so when you run the function, nothing is returned (although the function actions are performed). Run this code and see if there is an object called `output` in the environment.
+
+```{r, eval = FALSE}
+myData <- tribble(
+  ~Treatment, ~value,
+  "Placebo", 1,
+  "Placebo", 2,
+  "Active", 3,
+  "Active", 4
+)
+
+myFunction1 <- function(data){
+  output <- data %>%
+    group_by(Treatment) %>%
+    summarise(n = n())
+}
+
+myFunction1(myData)
+```
+
+In the following code, the `output` object has an implicit `print` statement which will mean that the function returns it.
+
+```{r, eval = FALSE}
+myFunction2 <- function(data){
+  output <- data %>%
+    group_by(Treatment) %>%
+    summarise(n = n())
+  output
+}
+
+myFunction2(myData)
+```
+
+In the last snippet, we formally return the output object. Using a `return` statement is good practice as it makes it really clear to a reviewer what is being returned from the function.
+
+```{r, eval = FALSE}
+myFunction3 <- function(data){
+  output <- data %>%
+    group_by(Treatment) %>%
+    summarise(n = n())
+  write.csv(x = output, file = "output.csv")
+  return(output)
+}
+
+myFunction3(myData)
+```
+
+## 3. Create a function
+
+Now let's take the code below and turn it into a function. We can use RStudio IDE "snippets" to write the function. At the Console `>` prompt in the RStudio IDE type "fun" then hit TAB key. Select `fun` from the {snippets} option. This writes a scaffolding snippet for you to complete. Give the function a name e.g. "myFunction1" then use the TAB key to move to the function "variables" and rename this to "inputVariable". Now hi the TAB key again to move to between the function brackets `{ }` where you would write your function code.
+
+Use the RStudio IDE `fun` snippet to create a function called "adsl_counts" based on the code below and copy the code into the body of that function. Your `adsl_counts` function should have an argument called `dataFile` and you should make sure that this argument is used within the `read_xpt` function to provide the path to the CDISC dataset for the `data_file` argument of `read_xpt`.
+
+```{r}
+
+adsl_counts <- function(dataFile){
+ adsl_saf <- read_xpt(  ) %>%
+    filter(SAFFL == "Y")
+  
+  Big_N_cnt <-  adsl_saf %>%
+    group_by( TRT01AN, TRT01A  ) %>%
+    count(name = "N")
+  Big_N_cnt
+  
+  small_n_cnt <- adsl_saf %>%
+    group_by( TRT01AN, TRT01A,  SEX ) %>%
+    count(name = "n")
+  small_n_cnt
+  
+  adsl_mrg_cnt <- small_n_cnt %>%
+    left_join(Big_N_cnt, by = c("TRT01A", "TRT01AN")) %>%
+    mutate(perc = round((n/N)*100, digits=1)) %>%
+    mutate(perc_char = format(perc, nsmall=1)) %>%
+    mutate(npct = paste(n, 
+                        paste0( "(", perc_char, ")" ) 
+                        ) 
+           ) %>%
+    mutate(SEX = recode(SEX, 
+                        "M" = "Male",
+                        "F" = "Female")) %>%
+    ungroup() %>%
+    select(TRT01A, SEX, npct) %>%
+    pivot_wider(names_from = TRT01A, values_from = npct) 
+  return(adsl_mrg_cnt)
+}
+```
+
+Running the finished function code above creates an R object of type function. You can see it in your Environment. Click on the function name or the "Script" icon to the right to view your function code.
+
+## 4. Apply the function to the CDISC dataset.
+
+Now test your code by creating a character string of the path to a CDISC `adsl` dataset and running your function. Note that you don't need to put the full path into the function call. Below we've created an object containing that path, then we're passing this into the function.
+
+```{r}
+inFile <- "https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt"
+
+adsl_counts(inFile)
+```
+
+## 5. Defensive programming
+
+What happens if we don't pass in an ADaM dataset?
+
+Well this is a case where you might want to write some additional code to check the type of input and stop execution if it's not the correct type. How can we tell if the dataset is ADaM format? One way is just to see if the file is called `adsl`. The `{stringr}` package contains helpful function for working with character strings... Let's use `str_detect`. Note here, I'm prefixing `str_detect` with `stringr::` in order to explicitly tell R ***(and you!)*** that `str_detect` is coming from the `{stringr}` package. You don't ***HAVE*** to do this, but it's often helpful for anyone reviewing your code which package a specific function comes from.
+
+```{r}
+stringr::str_detect(inFile, "adsl")
+```
+
+R has some functions which help you pass messages, warnings and error messages back to the user. It's a good idea when you write functions to try to make these messages meaningful so that the user can figure out what went wrong and how to correct this. The `try` function will attempt to run some code, and if it fails the `stop` message will be displayed. Try it out for various values of `inFile`.
+
+```{r}
+try(if(!stringr::str_detect(inFile, "adsl")) stop("Input data is not CDISC adsl dataset"))
+```
+
+Now try applying the `adsl_counts`function to using a dataset that isn't an ADaM dataset (or one that isn't `adsl`).
+
+#### Naming arguments is hard
+
+In the function above we named the argument `dataFile`. But this doesn't give the user much clue what kind of input or data file is expected. It's not immediately clear that what is expected is a character string file path to an "adsl" ADaM dataset. Maybe if we (re)named it `adsl_FilePath` then it would give users much more clue what kind of data is used in the function, and we would avoid difficulties before they arise.
+
+My recommendation is to write the function, check that it works, THEN go back through and make changes to rename items. You can use the RStudio IDE to help:
+
+1.  double click on the argument `dataFile` - note how the IDE finds all instances of `dataFile` within the function
+
+2.  from the "Code" menu, select "Rename in scope" - type `adsl_File` to rename the argument AND instances of this argument ***within the function***.
+
+```{r}
+adsl_counts <- function(dataFile){
+    adsl_saf <- read_xpt(  ) %>%
+    filter(SAFFL == "Y")
+  
+  Big_N_cnt <- adsl_saf %>%
+    group_by( TRT01AN, TRT01A  ) %>%
+    count(name = "N")
+  Big_N_cnt
+  
+  small_n_cnt <- adsl_saf %>%
+    group_by( TRT01AN, TRT01A,  SEX ) %>%
+    count(name = "n")
+  small_n_cnt
+  
+  adsl_mrg_cnt <- small_n_cnt %>%
+    left_join(Big_N_cnt, by = c("TRT01A", "TRT01AN")) %>%
+    mutate(perc = round((n/N)*100, digits=1)) %>%
+    mutate(perc_char = format(perc, nsmall=1)) %>%
+    mutate(npct = paste(n, 
+                        paste0( "(", perc_char, ")" ) 
+                        ) 
+           ) %>%
+    mutate(SEX = recode(SEX, 
+                        "M" = "Male",
+                        "F" = "Female")) %>%
+    ungroup() %>%
+    select(TRT01A, SEX, npct) %>%
+    pivot_wider(names_from = TRT01A, values_from = npct)
+  
+  adsl_mrg_cnt
+}
+```
+
+## 6. Review and refactor. Often.
+
+As you learn stuff in R, you'll find new ways of doing things - they might be more efficient / faster, are able to be done in parallel, or where some complex piece of code can be made more simple. It's good practice to come back around to your functions from time to time, to check that they still make sense and if there's anything that can be improved.
+
+Good functions should be easy to read, review, and improve. In the code above, the function takes the github path and does everything from reading the xpt dataset to producing the table content. But we might be able to simplify things if the code ***only*** produces the summarised counts, rather than reading the data. Reading data over the network is comparatively slow. So we only want to do that once in a session, if we can.
+
+As we said earlier, if we're writing functions for use in `{tidyverse}` data pipelines, we should expect a tibble / dataset as an input and return another tibble / dataset. But here what's expected as an input is a ***character string file path***. That's not ideal. Let's reorganise (we call it refactor) the code so that we take the file reading outside the function, and instead assume that what is being passed in is the "adsl" ***dataset***.
+
+Amend the function code below to instead calculate based on an input dataset, like the `adsl_saf` data. You'll need to update code for `Big_N_cnt` and `small_n_cnt` to point to the input to the function (the input dataset). Check that the code works by running the chunk.
+
+```{r}
+adsl_counts <- function(adsl_FilePath) {
+  adsl_saf <- read_xpt(   ) %>%
+    filter(SAFFL == "Y")
+  
+  Big_N_cnt <-  adsl_saf   %>%
+    group_by( TRT01AN, TRT01A  ) %>%
+    count(name = "N")
+  Big_N_cnt
+  
+  small_n_cnt <-  adsl_saf  %>%
+    group_by( TRT01AN, TRT01A,  SEX ) %>%
+    count(name = "n")
+  small_n_cnt
+  
+  adsl_mrg_cnt <- small_n_cnt %>%
+    left_join(Big_N_cnt, by = c("TRT01A", "TRT01AN")) %>%
+    mutate(perc = round((n/N)*100, digits=1)) %>%
+    mutate(perc_char = format(perc, nsmall=1)) %>%
+    mutate(npct = paste(n, 
+                        paste0( "(", perc_char, ")" ) 
+                        ) 
+           ) %>%
+    mutate(SEX = recode(SEX, 
+                        "M" = "Male",
+                        "F" = "Female")) %>%
+    ungroup() %>%
+    select(TRT01A, SEX, npct) %>%
+    pivot_wider(names_from = TRT01A, values_from = npct)
+  
+  adsl_mrg_cnt
+}
+
+inFile <- "https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt"
+
+table1 <- read_xpt(inFile) %>%
+    filter(SAFFL == "Y") %>%
+  adsl_counts()
+table1
+```
+
+## 7. Troubleshooting and debugging functions
+
+Functions that have only one argument or input are typically easy to debug. In the console, create an object with the same name as the argument, then step through the code body of the function one line at a time, until you identify the issue.
+
+But typically, functions have many more arguments and it gets tedious very quickly to assign all these to objects and then step through the code. However, R and the RStudio IDE provide some helpful tools for debugging. See this article: <https://support.rstudio.com/hc/en-us/articles/205612627-Debugging-with-the-RStudio-IDE>
+
+Jenny Bryan's talk from RStudioConf 2020 was a great exposition of what to do when your code goes wrong: <https://www.rstudio.com/resources/rstudioconf-2020/object-of-type-closure-is-not-subsettable/>
+
+I ***STRONGLY RECOMMEND*** that you go and review the material and video linked here. It'll help you ***ENORMOUSLY***.
+
+## 8. You don't need to specify ALL the arguments - ellipses
+
+As you write functions you might find yourself adding more and more and more arguments to handle various options within the function. Typically these are additional arguments to functions used within the main function. But there's an easy way to extend function calls to allow this. If we type `...` as an argument to the function we can pass arguments down into lower level functions used within the parent function. We add the same `...` to these function calls, like this:
+
+```{r}
+mySummary <- function(myData, ...){
+  myData %>%
+    group_by( TRT01AN, TRT01A ) %>%
+    summarise(mean = round(mean(AGE), ... ))
+}
+
+mySummary(adsl_saf)
+
+mySummary(adsl_saf, digits = 1)
+```
+
+In the code above we are allowing the user to pass the `digits` argument through to the `round` function. The `.` ellipses say "Whatever extra arguments the user gives, pass them through...". And the `.` in the `round` function say "Whatever extra arguments the user gives, use them here...". Note that lower level function arguments passed via ellipses must be valid arguments... You just need to be careful if there is more than one function with the same named arguments... Naming things is hard.
+
+## Challenge
+
+Convert the code you wrote in the Mini Project 6 challenge into a function that takes an input `adlb` dataset and produces the graph. For an additional challenge, allow the user to specify the axes labels.

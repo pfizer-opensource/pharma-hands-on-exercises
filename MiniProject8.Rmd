@@ -1,0 +1,331 @@
+---
+title: "Mini-project 8 - Applying functions through iteration"
+author: "Mike K Smith"
+date: "3/6/2023"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rio)
+
+adsl_saf <- import("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt") %>%
+    filter(SAFFL == "Y")
+```
+
+## Overview
+
+In this Mini-Project we'll look at how to use R to apply functions to data, iterating over rows, columns and subsets of data.
+
+We'll look at how we write loops in R, but also discuss how loops aren't often the best solution within R.
+
+We'll look at the base R `apply` functions. These are very useful but each function takes a particular type of input object, then returns a particular structure of output object, and they often have different arguments.
+
+We'll look at some `{tidyverse}` functions that allow you to repeat a function across columns or row content, selecting which columns or rows to affect. We'll also look at the `{purrr}` package and how it can be used to repeat an action across elements of a list and how we can break down data into list format.
+
+Finally we'll briefly discuss different options for splitting out actions across multiple processors to make repeating functions for collections of items much faster, when needed.
+
+## In SAS we loop, in R not so much...
+
+In SAS, we typically use a DATA step to perform calculations on data values. SAS works with data by looking at the values across data columns ***by row***. In SAS it's natural to write code that applies functions across columns and iterate or cycle through rows by writing loops.
+
+In the S language implementation with S-Plus ***many years ago***, there was a memory leak that meant that working with loops could eventually cause S-Plus to crash. For this reason, developers shied away from using loops in S code, and this loop-phobia has carried over into development of code in R. But loops and the way they are often implemented have a few other properties that make them less efficient in R. We'll look at these later...
+
+R deals with vectors of values, arrays, matrices, lists and data frames (which are essentially lists of vectors where all vectors have the same length). R is written so that it can perform calculations or operations across vectors VERY easily and QUICKLY.
+
+For example, if we wanted to count the number of non-missing values in the columns of `adsl_saf` we can first figure out how to do this for a single column:
+
+```{r}
+adsl_saf %>%
+  select(SUBJID) %>%
+  summarise(nonmiss = sum(!is.na(SUBJID)))
+```
+
+Note that in this example, R is evaluating whether the values in the SUBJID variable are (not) missing, creating `TRUE` or `FALSE` for every observation simulateously via the `is.na` function. Then we're taking the sum of those values where `TRUE` = 1 and `FALSE` = 0. This gives the number of non-missing values in the column.
+
+R is written to work VERY efficiently with columns, and functions like `is.na` and `sum` calculate the values needed very quickly across the whole vector of inputs. Note that we didn't need to write `if(!is.na(SUBJID), TRUE, FALSE)` and iterate over every value in the column. R knows that it has to apply the `is.na` function to every value in the vector and return a vector of `TRUE` or `FALSE` for each value in the vector of inputs.
+
+## If you HAVE to loop...
+
+If we want to do that for every column in `adsl_saf` then we need to work out a way to tell R to do that. It might be natural to think of creating a loop that cycles through every variable name in `adsl_saf` and then perform the same action as above.
+
+1.  To do so, first we need the names of the columns in the `adsl_saf` dataset. We get this using the `names` function.
+
+    `varNames <- names(adsl_saf)`
+
+2.  Then we set up a vector called `counts` to contain the calculated values. It's worth preparing the results object with the right length BEFORE you start putting values into it, for efficiency reasons that we'll look at later. The results values are integers, and the vector has the same length as the number of columns in the dataset.
+
+    `counts <- vector("integer", length(varNames))`
+
+3.  Next we construct the loop. R has a `for` loop and a `while` loop. `for` loops have less tendency to spin into infinite cycles, so I favour them here. Note that instead of giving the upper range of the `for` loop a specific number, I'm using the length of `varNames` vector since this will allow us to pass in a dataset with a different number of columns and the code will still work.
+
+    `for(i in 1:length(varNames)){`
+
+    `}`
+
+4.  Within the `{ }` of the loop we put code that we want to run with each iteration. We assign element `i` of the counts vector. We point to the i_th element of the `varNames` vector and use this to pick out th column in `adsl_saf` that we want to work with using the `[[` operator to extract that column. We then use the `!is.na` logical comparison to check whether the values in the column are missing. This will give a `TRUE` or `FALSE` result for each value. Using the `sum` function effectively treats these as 0 for `FALSE` and 1 for `TRUE` so the sum counts the number of non-missing values. Note that `!is.na` and `sum` operate over the vector as a whole, in one operation, as we saw earlier.
+
+        counts[i] <- sum( !is.na( adsl_saf[[varNames[i]]] ) )
+
+5.  At the end of the loop, the `i` values in `counts` should be filled with the number of non-missing values in each column. Note that (like in a function) if you do not return items OUT of the loop, then they will not be stored for later use.
+
+6.  We name the elements of the vector using the `varNames`.
+
+    `names(counts) <- varNames`
+
+Putting all this together we get the code chunk below:
+
+```{r}
+varNames <- names(adsl_saf)
+counts <- vector("integer", length(varNames))
+for(i in 1:length(varNames)){
+  counts[i] <- sum(!is.na(adsl_saf[[varNames[i]]]))
+}
+names(counts) <- varNames
+head(counts)
+```
+
+While this works, the code is a bit clunky. I see code like this (or variations on it) ***ALL THE TIME*** from colleagues who have picked up R after learning SAS and getting used to the "loop way" of dealing with iteration.
+
+Note that this results in ***a vector of named elements***, rather than a dataset, so it's not so easy to extract the element you might want. Trying the `{tidyverse}` `select` statement results in an error.
+
+```{r}
+counts %>%
+  select(STUDYID)
+```
+
+It's not immediately clear from the error above exactly what the problem is. Subsetting by variable name, assuming that `counts` is a data frame (and so has two dimensions):
+
+```{r}
+counts[,"STUDYID"]
+```
+
+Again, the error is a little cryptic. And while ***you*** might remember that this is a named vector, someone else checking your code is highly likely to miss this.
+
+```{r}
+counts["STUDYID"]
+```
+
+If you have the situation where the length of the loop is not known *a priori*, then it may be tempting to grow the output with the loop by appending items to the list.
+
+```{r}
+counts <- NULL
+for(i in 1:length(names(adsl_saf))){
+  counts <- c(counts, sum(!is.na(adsl_saf[i,])))
+}
+counts
+```
+
+***DO NOT*** **`c(.)` items together within a loop to "grow" the output object.**
+
+The problem here is that this way of working has a quadratic order which means that a loop with 3 times as many elements would take 9 times (3-squared) as long. R doesn't know how big the object needs to be in advance and so it ***copies*** the object in memory into the loop, effectively creating n versions of the object. To avoid this, it's always best to set up the output object with the right dimensions ***FIRST*** then fill it with values. By doing this, R is effectively overwriting an existing value (even if it's zero or NULL) with a new value.
+
+## The apply family
+
+In base R, the `apply` family, takes an input and applies the same ***function*** to each element to create an output. The `apply` function takes an ***array*** of values and applies a function across one (or more) `MARGIN`s.
+
+Let's play ***HUNT THE MISSING VALUE...***
+
+```{r}
+randomNumberArray <- array(rnorm(70), dim = c(7, 10))
+## Make one number at random missing
+randomNumberArray[sample(1:7,1), sample(1:10,1)] <- NA
+
+nonMissing <- function(vector){
+  sum(!is.na(vector))
+}
+
+round(randomNumberArray,2)
+```
+
+To apply the `nonMissing` function across rows we specify MARGIN = 1.
+
+```{r}
+apply(randomNumberArray, MARGIN = 1, FUN = nonMissing)
+## Returns a vector of size 7, containing number 10 except for where the missing value is
+```
+
+To apply the nonMissing function across columns we specify MARGIN = 2.
+
+```{r}
+apply(randomNumberArray, MARGIN = 2, FUN = nonMissing)
+## Returns a vector of size 10, containing number 7 except for where the missing value is
+```
+
+If we want to apply (pun intended) this function to the columns of a dataset, we need the analogous function `lapply` which applies a function to elements of a list (`lapply` == ***l***ist ***apply***). Recall that data frames are named lists comprised of vectors of the same length.
+
+```{r}
+lapply(adsl_saf, FUN = nonMissing) %>%
+  head()
+```
+
+This is good, but what we get back is a list. If we want to convert this list to a vector, we can use `sapply` rather than `lapply` because `sapply` = ***s***implify ***apply***.
+
+```{r}
+sapply(adsl_saf, FUN = nonMissing) %>%
+  head()
+```
+
+If you want to apply the function but within levels of a factor, you can use `tapply`.
+
+```{r}
+tapply(adsl_saf$AGE, INDEX = adsl_saf$TRT01A, FUN = nonMissing)
+```
+
+But `tapply` applies to one variable at a time, because `tapply` applies the function to a vector, and INDEX variable. If you wanted to `tapply` to every column in `adsl_saf` you would need to `apply` the `tapply` and remember which `MARGIN` you need to work over and figure out that the `FUN` function you need to apply needs to be expressed as a function. And then you'd have to figure out how to reference elements of a named array to be able to use the output... Not easy.
+
+```{r}
+apply(adsl_saf, MARGIN = 2, 
+      FUN = function(x)tapply(x, INDEX = adsl_saf$TRT01A, FUN = nonMissing)) %>%
+  head()
+```
+
+And yes, there's a whole ***family*** of `apply` functions:
+
+`apply`, `lapply`, `sapply`, `tapply,` `mapply`, `rapply`, ...
+
+It's hard to remember exactly what each of these does - what it expects as an input, what it is likely to generate as an output, and what the arguments of each function do.
+
+## tidy iteration
+
+### Column-wise operations using `across`.
+
+To solve this, the `{tidyverse}` has come up with some easier ways to deal with doing the same action across multiple columns or rows of a dataset. It also has an extension to allow us to apply functions and get predictable results back. In the earlier Mini-projects we have relied on the `summarise` function to get back a summary of the counts per group.
+
+```{r}
+adsl_saf %>%
+  group_by(SEX) %>%
+  summarise(n = n())
+```
+
+`summarise` also works across columns, but we need to tell the function ***which*** columns to apply the function to. To do this we use the `across` function. This function takes two main arguments: `.cols` which defines which columns to act on and `.fns` to define what function to apply to each of the identified columns.
+
+```{r}
+adsl_saf %>%
+  summarise(across(.cols = everything(), .fns = nonMissing))
+
+```
+
+Note that what we get back from this operation is another `tibble` data set. This is handy because we can continue to process this data in `{dplyr}` data pipelines quite easily.
+
+What we're relying on here with the `.cols = everything()` argument is a nifty set of functions within the `{tidyselect}` package. This allows you to be quite precise about which columns to summarise. Options for `.cols` include `starts_with`, `ends_with`, `contains`, `all_of`, `any_of`, `where(is.numeric)`, `where(is.character)`, etc. OR you can specify columns by position e.g. 2:9 OR you can simply name the columns you would like it to operate on. In the code chunk below we're using the `any_of` option that tries to match against the vector of column names, and then applies the function to any columns that match the names given.
+
+```{r}
+adsl_saf %>%
+  summarise(across(.cols = any_of(c("AGE","SEX", "RACE","ETHNIC")),
+                   .fns = nonMissing)
+            )
+
+```
+
+An alternative might be `all_of` but then if a column is missing from the set, the operation will stop.
+
+```{r}
+adsl_saf %>%
+  summarise(across(.cols = all_of(c("AGE","SEX", "RACE","ETHNIC","MIKE")),
+                   .fns = nonMissing)
+            )
+
+```
+
+The beauty of `{tidyselect}` is that it uses syntax that is fairly self-explanatory and doesn't rely on positions of columns in the dataset. So it can be configured to be pretty robust for different input data. In the example above, if the `ETHNIC` variable was missing, the code would still run, but just report back the results for `AGE, SEX, RACE`.
+
+Using `where(is.numeric)` allows us to process only numeric variables. This can be helpful for printing purposes - for example, you might want to round ***ALL*** numeric values to two decimal places. In the example below though, we're returning the median of all numeric columns.
+
+```{r}
+adsl_saf %>%
+  summarise(across(.cols = where(is.numeric),
+                   .fns = median)
+            )
+```
+
+You can also incorporate `group_by` operations:
+
+```{r}
+adsl_saf %>%
+  group_by(TRT01A, TRT01AN) %>%
+  summarise(across(.cols = where(is.numeric),
+                   .fns = median)
+            )
+
+```
+
+You can also perform similar functions using the `mutate` verb instead of `summarise`. So for example, if you wish to ensure that all character columns are presented in upper case:
+
+```{r}
+adsl_saf %>%
+  mutate(across(.cols = where(is.character),
+                   .fns = toupper)
+            )
+```
+
+### row-wise operations using `rowwise`.
+
+Similarly, you can tell R to do things across rows in a dataset using the `rowwise` operation. `rowwise` is essentially a special kind of `group_by` operation. It expects you to identify one line of a dataset using identifier variables. You can then use `mutate` and `summarise` as before, operating across columns for each row as defined in `rowwise`. The analogue of `across` from the column-wise operations is `c_across`. Unlike `across` in column-wise operations which goes on the ***left*** of the equal sign and usually has a function associated with it, `c_across` goes on the ***right*** of the equal sign, often ***within*** a function operator and ***only*** selects columns.
+
+```{r}
+adsl_saf %>%
+  rowwise(SUBJID) %>%
+  summarise(missingData = sum( 
+                               is.na( 
+                                      c_across( 
+                                                where(is.numeric)
+                                                )
+                                      )
+                               )
+            )
+
+```
+
+Here we have flipped the function to show the number of ***missing*** items for each subject's data row. This could be quite helpful in a data review context.
+
+## Make functions `{purrr}` with `map`.
+
+With column-wise and row-wise operations as illustrated above, you can do quite a lot without having to write loops. But there are occasions where it would be useful to be able to have something like the `apply` family of functions, but without having to remember all of the different inputs, outputs and argument options.
+
+The `{purrr}` package attempts to get around that using the `map` family of functions. These all have the same basic structure and arguments. `map` functions take a ***LIST*** as an input and the user must supply a function to operate on each element of the list. But it's quite easy to break data into lists:
+
+```{r}
+adsl_saf %>%
+  split(f = .$SUBJID) %>%
+  head(2)
+
+```
+
+We can then use the `map` function to apply any function to that set of data.
+
+```{r}
+library(skimr)
+adsl_saf %>%
+  split(f = .$TRT01A) %>%
+  head(2) %>%
+  purrr::map(.f = skimr::skim)
+```
+
+If you want to apply the function to the list item just for the side-effect e.g. to plot a graph, or write out something to file, there's an equivalent `walk` function.
+
+There are extensions to the `map` function to specify what type of output object (or what type of column attributes the output should have). There are also extensions to allow you to work through two lists, operating on items in both simultaneously - so perhaps calculating some values using the first element of input 1, and settings using the first element from input 2.
+
+### Speed it up, make it parallel
+
+The beauty of working with functions, splitting data into lists defined by some attributes is that you can then use parallel processing to speed up lengthy jobs even further. Using loops works (by default) on one processor. The `apply` family of functions works on one processor. The `{dplyr}` verbs work on one processor. BUT there is always a way to make things faster with R.
+
+The `{multidyplr}` package allows you to set up a cluster of processors and then uses `{dplyr}` verbs across `group_by` groups.
+
+<https://multidplyr.tidyverse.org/articles/multidplyr.html>
+
+The `{furrr}` package uses `{purrr}` like function analogues to split tasks across multiple processors.
+
+<https://furrr.futureverse.org/>
+
+The `{foreach}` package sets up clusters of processors and splits out tasks using `foreach(...) %do%` syntax.
+
+<https://cran.r-project.org/web/packages/foreach/vignettes/foreach.html>
+
+Using each of these packages is a little out of scope for this Mini-Project, but it's worth knowing that they are available if you need to do large-scale processing of data, and now you know how to split data into list objects and apply functions to each element of that list.
+
+## Challenge
+
+Apply the `adsl_counts` function that you developed in Mini-Project 7 to the `adsl_saf` data here, to show the counts of `SEX` by `TRT01A` for each value of `RACE`.
+

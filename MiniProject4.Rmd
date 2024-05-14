@@ -1,0 +1,231 @@
+---
+title: "Mini-project 4 - Creating summary table data"
+author: "Mike K Smith"
+date: "2/15/2023"
+output: html_document
+---
+
+# Putting it all together
+
+## Data Source
+For these projects we are using anonymized CDISC datasets, which can be found here:
+https://github.com/phuse-org/phuse-scripts/tree/master/data/adam/cdisc 
+
+## How to use this document:
+
+In this document you'll see code chunks (typically on a light grey background) and text. This is an example of an "Rmarkdown" document. You can write and run code within the document and the results will be presented underneath each code chunk. You should follow the instructions as written in the text, amending the code chunks, then running them to produce the outputs as instructed.
+
+In this project we will be taking our code from Projects 2 and 3 and combining them to create output similar to that of our demog reference table
+
+In this project we are working towards creating a demography summary table similar to this one: 
+![Demographic table](img/MiniProject4_demog_table.png). After completing the challenge, the updated table should be similar to this one:![Final demographic table](img/demog_summary_table.png)
+
+For steps 1-7 we will be re-doing the code we did in Projects 2 and 3. We will not be breaking it up and explaining the code for these steps since this is taken directly from Projects 2 and 3. You can refer to those trainings for a full explanation of the code and logic used here.
+
+1.  Setup of ADSL_EFF dataframe
+
+```{r setup adsl}
+library(tidyverse)
+library(rio)
+
+adsl <- import("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt")
+
+adsl_eff <- adsl %>%
+  filter(EFFFL == "Y" ) %>%
+  mutate(SEX = recode(SEX, "M" = "Male", "F" = "Female"))
+```
+
+2.  Calculating our Big N and small n counts, and join dataframes (Project 2)
+
+```{r creating counts}
+Big_N_cnt <- adsl_eff %>%
+  group_by( TRT01AN, TRT01A  ) %>%
+  count(name = "N")
+
+small_n_cnt <- adsl_eff %>%
+  group_by( TRT01AN, TRT01A,  SEX ) %>%
+  count(name = "n")
+```
+
+------------------------------------------------------------------------
+
+### ASIDE: Handling zero counts
+
+There are often cases where there are zero counts within categories. We need to find a way to handle these correctly.
+
+BTW - Here we're using the function `tribble()` to create a little toy dataset. `tribble` works like the `datalines` or `cards` statements in SAS. You define data values (columns, rows) inline.
+
+```{r}
+myData <- tribble(
+  ~TRT01AN,  ~TRT01A, ~SEX,
+  1, "Placebo", "M",
+  1, "Placebo", "F",
+  2, "Active", "F",
+  2, "Active", "F",
+  3, "Comparator", "M",
+  3, "Comparator", "M"
+)
+
+myData %>%
+  group_by(TRT01AN, TRT01A, SEX) %>%
+  count(name = "n")
+```
+
+Note that we don't get 6 rows. Comparator + Female ("F") is missing, as is Active + Male ("M").
+
+You can perform some juggling and arbitrary fixing here and there, but there's another way using `complete`. First calculate the counts, THEN you need to `ungroup` THEN you can apply the `complete`. `nesting` says "take the values that appear in the data..." while things outside `nesting` in the `complete` function expand all possible values of SEX with the nested values. The `fill = list(n=0)` says that for any missing values (where there isn't data) fill the `n` variable with the value = 0.
+
+```{r}
+myData %>%
+  group_by(TRT01AN, TRT01A, SEX) %>%
+  count(name = "n") %>%
+  ungroup() %>%
+  complete(nesting(TRT01AN, TRT01A), SEX, fill = list(n=0))
+```
+
+**BTW** - the `complete` function is *ACTUALLY* a wrapper around `expand`, `left_join`, `replace_na` functions. So yes, you can do the individual steps if you like, OR you can use the function...
+
+------------------------------------------------------------------------
+
+3.  Calculating counts for Age Groups (Challenge 1) We calculate counts per age group, and merge them together, along with the gender counts that were created in project 2
+
+```{r merging data frames}
+Agegrp_N_cnt <- adsl_eff %>%
+  group_by(TRT01AN, TRT01A, AGEGR1) %>%
+  count(name = "age_total")
+
+age_n_cnt <- adsl_eff %>%
+  group_by(TRT01AN, TRT01A, SEX, AGEGR1) %>%
+  count(name = "age_n")
+
+age_mrg_cnt <- age_n_cnt %>% 
+  left_join(Agegrp_N_cnt, 
+            by = c("TRT01AN", "TRT01A", "AGEGR1"))
+
+age_mrg_cnt2 <- age_mrg_cnt %>% 
+  left_join(Big_N_cnt, 
+            by = c("TRT01AN", "TRT01A"))
+
+age_mrg_cnt3 <- age_mrg_cnt2 %>% 
+  left_join(small_n_cnt, 
+            by = c("TRT01A", "TRT01AN", "SEX"))
+
+age_mrg_cnt3 <- ungroup(age_mrg_cnt3)
+```
+
+4.  Getting percentages for totals by age group
+
+```{r creating percents}
+age_data_new <- age_mrg_cnt3 %>% 
+  mutate(perc_tot = round((age_total/N)*100, 1)) %>%                 
+  mutate(perc_age = round((age_n/n)*100,1))
+
+age_pct <- age_data_new %>%
+  mutate(perc_tchar = format(perc_tot, nsmall = 1)) %>%
+  mutate(perc_achar = format(perc_age, nsmall = 1))
+
+age_n_pct <- age_pct %>%
+  mutate(npct = paste(age_n, paste0("(", perc_achar, ")"))) %>% 
+  select(AGEGR1, TRT01A, SEX, npct)
+```
+
+5.  Transpose and rename columns so that they can be set together
+
+```{r age_cat}
+Age_trans <- pivot_wider(age_n_pct, 
+                         names_from = c(TRT01A,SEX), 
+                         values_from = npct, 
+                         values_fill = "0",
+                         names_sep = "_")
+
+age_cat <- rename(Age_trans, category=AGEGR1)
+age_cat %>%
+  arrange(category)
+```
+
+------------------------------------------------------------------------
+
+**ASIDE**: Use of factors to control data ordering
+
+In `myData` below, if we sort by `age` then R puts the age category "\>=65" first. This is because R sorts character variables alphanumerically, so "\>" comes before "1".
+(This may or may not occur depending on your version of R. Newer versions will actually sort it correctly!)
+
+```{r}
+myData <- tibble::tribble(
+  ~ID, ~age,
+  1, "18-44",
+  2, ">=65",
+  3, "45-64")
+myData %>%
+  arrange(age)
+```
+
+Factors in R allow you to define discrete levels of a variable *and* the ordering of those levels. Factors were originally used in R to define the ordering of treatment labels and which treatment to use as the base level for constructing contrasts in statistical comparisons. But they are also useful for the purpose of rearranging elements in a user-defined order. Here we define age categories for age groups from age zero to over 65. Even if the data *doesn't* have one of those age categories, it will still respect the levels and ordering. This means that, in defensive programming terms, we allow for future age categories that we haven't seen in our data.
+
+```{r}
+myData <- myData %>%
+  dplyr::mutate(age = factor(age,
+                    levels = c("0-2", "3-8", "9-12", "13-17", "18-44", "45-64",">=65")))
+myData %>%
+  arrange(age)
+```
+
+------------------------------------------------------------------------
+
+6.  Generating Summary Statistics (Project 3)
+
+```{r summary stats}
+age_stat<- adsl_eff %>%
+  group_by(TRT01AN,TRT01A,SEX) %>%
+  summarize(mean = mean(AGE) %>% round(digits = 1) %>% format(nsmall=1)  ,
+            sd = sd(AGE) %>% round(digits = 1) %>% format(nsmall = 1), 
+            med = median(AGE) %>% round (digits=1) %>% format(nsmall=1),              
+            min = min(AGE) %>% format(nsmall=1), 
+            max = max(AGE) %>% format(nsmall=1),
+           n = n()%>% format(nsmall=0))
+age_stat2<-age_stat %>%
+  mutate(range_minmax= paste0("(",min, ",", max, ")"))
+```
+
+7.  Ungrouping and transposing
+
+```{r agestat_cat}
+desc_stat_long <- age_stat2 %>%
+ ungroup() %>%
+  select("TRT01A","SEX", "n", "mean", "med", "sd", "range_minmax") %>% 
+  mutate(across(where(is.numeric), .fns = as.character)) %>%
+  pivot_longer(-c("TRT01A","SEX"), names_to ="category", values_to = "values" )
+agestat_cat <- desc_stat_long %>%
+  pivot_wider(names_from = c(TRT01A, SEX), values_from = values) %>%
+  mutate(category = case_when(category == "n" ~ "N",
+                            category == "med" ~ "Median", 
+                              category == "mean" ~ "Mean", 
+                             category == "sd" ~ "Std Dev", 
+                             category == "range_minmax" ~ "Range(min,max)"))
+agestat_cat
+```
+
+8.  Project 4 . Now we combine the two output dataframes that we created above. We are going to use the `bind_rows` function to join together two dataframes (separated by commas). Bind_rows is a lot like a SET statement in SAS, and is used to bind multiple dataframes, a list, or a list of dataframes into one.
+
+This will resemble the final demog table when output.
+
+    age_cat - contains counts and percent for age groups x gender x treatment
+
+    agestat_cat - contains summary statistics for gender x treatment
+
+```{r allcomb}
+dm_allcomb <- bind_rows(age_cat, agestat_cat)  
+dm_allcomb
+```
+
+    Note: When row binding, columns must match in variable name. We don't have any missing values, but it we did, those columns would be filled with 'NA' values. 
+
+## Challenges: Take the following actions to match with the Demographic table.
+
+1.  Reorder the age variables to be in the correct order (<65, 65-80, >80)
+
+2.  Move N before Age- categories.
+
+3.  Add Ethnicity and Race.
+
+Save the .RMD file on your desktop and click on the "Knit" button at the top of the file to render an HTML version of this document.
