@@ -66,3 +66,5 @@ You should fork this repository and submit a pull-request. Issues and questions 
 -   Samir Parmar
 
 -   Leanne Vicente
+
+-   Rajni Bhaya
