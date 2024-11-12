@@ -58,14 +58,14 @@ library(rio)
 
 2.   Read in the CDISC adsl data from the GitHub location (`https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt`) and assign this to an object in R using the assignment operator `<-`. Make sure that the URL location is a character string by enclosing it in `" "`. The `rio` package has a function called `import` that reads data into R and infers the data type from the file name. The first argument of that function is `file`. Paste the file path / URL above after the `file=` argument in the code below, then run the chunk using the green arrow.
 
-```{r create_adsl_saf}
+```{r read_adsl}
 adsl <- import( file = ""  )
 adsl
 ```
 
 Next filter the adsl dataset where the EFFFL variable has the value "Y" (as we did in previous MiniProjects). Add the appropriate code to the `filter` function to select only observations where the EFFFL is "Y". We will also recode the SEX variable to replace values where it is "M" with the value "Male" and where "F" recoding to "Female".
 
-```{r create_adsl_saf}
+```{r create_adsl_eff}
 adsl_eff <- adsl %>%
   filter(  ) %>%
   mutate(SEX = recode(SEX, "M" = "Male", "F" = "Female")) 
@@ -200,8 +200,6 @@ agestat_cat
 
 ## Challenge 1: Get similar information for weight & Height.
 
-(advs dataset in same GitHub as adsl)
-
 To check that your code is reproducible, you will want to use the "knit" button on the RStudio IDE interface to create an HTML file based on your saved .Rmd file. If your code chunks are reproducible then you should get an HTML file as a result. If NOT (if there's an error or if the "knit" process fails) then click on the arrow to the right of the "Run" button and select "Restart R and Run All Chunks". Then troubleshoot which chunk is causing problems.
 
 Save the .RMD file on your desktop and click on the "Knit" button at the top of the file to render an HTML version of this document.
@@ -213,7 +211,7 @@ If you need to copy and paste code 3 times or more it's time to write a function
 You can quickly convert from code like this:
 
 ```{r}
-age_stat<- adsl_saf %>%
+age_stat<- adsl_eff %>%
   group_by(TRT01AN,TRT01A,SEX) %>%
   summarize(mean = mean( ) %>% round(digits = 1) %>% format(nsmall=1)  ,
             sd = sd( ) %>% round(digits = 1) %>% format(nsmall = 1), 
@@ -227,8 +225,8 @@ age_stat
 
 To a function like this:
 
-```{r}
-varSummary <- function(adsl_saf, TRT01AN, TRT01A, SEX) {
+```{r, eval = FALSE}
+varSummary <- function(adsl_eff, TRT01AN, TRT01A, SEX) {
   adsl_saf %>%
     group_by(TRT01AN,TRT01A,SEX) %>%
     summarize(mean = mean( ) %>% round(digits = 1) %>% format(nsmall=1)  ,
@@ -244,7 +242,7 @@ using the "Extract function" in RStudio IDE's "Code" menu. You can then tidy thi
 
 Let's change the input data argument to .data to match what we see in {tidyverse} functions and add an argument that is the name of the variable in the dataset that we want to summarise. For now, let's assume that the function will summarise by `TRT01AN, TRT01A, SEX` regardless of which variable is being summarised:
 
-```{r}
+```{r, eval = FALSE}
 varSummary <- function(.data, variable) {
   .data %>%
     group_by(TRT01AN,TRT01A,SEX) %>%
